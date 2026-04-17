@@ -1,13 +1,152 @@
 import 'package:flutter/material.dart';
-import 'package:qr_code_scanner/history_screen.dart';
-import 'package:qr_code_scanner/home_screen.dart';
-import 'package:qr_code_scanner/setting_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+import 'home_screen.dart';
+import 'history_screen.dart';
+import 'setting_screen.dart';
+import 'qr_storage.dart';
 
 // ================== MAIN SCREEN ==================
 
-class GenerateQRScreen extends StatelessWidget {
+class GenerateQRScreen extends StatefulWidget {
   const GenerateQRScreen({super.key});
 
+  @override
+  State<GenerateQRScreen> createState() => _GenerateQRScreenState();
+}
+
+class _GenerateQRScreenState extends State<GenerateQRScreen> {
+  String qrData = "";
+  String selectedType = "Text";
+
+  // ================= CONTROLLERS =================
+  final textController = TextEditingController();
+  final websiteController = TextEditingController();
+
+  final wifiNameController = TextEditingController();
+  final wifiPassController = TextEditingController();
+
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+
+  final usernameController = TextEditingController();
+
+  // ================= QR GENERATOR =================
+  void generateQR() {
+    String result = "";
+
+    switch (selectedType) {
+      case "Text":
+        result = textController.text;
+        break;
+
+      case "Website":
+        result = websiteController.text;
+        break;
+
+      case "Wi-Fi":
+        result =
+            "WIFI:T:WPA;S:${wifiNameController.text};P:${wifiPassController.text};;";
+        break;
+
+      case "WhatsApp":
+        result = "https://wa.me/${phoneController.text}";
+        break;
+
+      case "Email":
+        result = "mailto:${emailController.text}";
+        break;
+
+      case "Twitter":
+        result = "https://twitter.com/${usernameController.text}";
+        break;
+
+      case "Instagram":
+        result = "https://instagram.com/${usernameController.text}";
+        break;
+
+      case "Telephone":
+        result = "tel:${phoneController.text}";
+        break;
+
+      case "Contact":
+        result =
+            "BEGIN:VCARD\nVERSION:3.0\nFN:${firstNameController.text} ${lastNameController.text}\nTEL:${phoneController.text}\nEMAIL:${emailController.text}\nEND:VCARD";
+        break;
+    }
+
+    setState(() {
+      qrData = result;
+    });
+  }
+
+  // ================= INPUT WIDGET =================
+  Widget input(TextEditingController c, String hint) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: c,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.white54),
+          filled: true,
+          fillColor: Colors.black45,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================= FORM =================
+  Widget buildForm() {
+    switch (selectedType) {
+      case "Text":
+        return input(textController, "Enter Text");
+
+      case "Website":
+        return input(websiteController, "Enter URL");
+
+      case "Wi-Fi":
+        return Column(
+          children: [
+            input(wifiNameController, "WiFi Name"),
+            input(wifiPassController, "Password"),
+          ],
+        );
+
+      case "WhatsApp":
+      case "Telephone":
+        return input(phoneController, "Phone Number");
+
+      case "Email":
+        return input(emailController, "Email Address");
+
+      case "Twitter":
+      case "Instagram":
+        return input(usernameController, "Username");
+
+      case "Contact":
+        return Column(
+          children: [
+            input(firstNameController, "First Name"),
+            input(lastNameController, "Last Name"),
+            input(phoneController, "Phone"),
+            input(emailController, "Email"),
+          ],
+        );
+
+      default:
+        return const SizedBox();
+    }
+  }
+
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,7 +154,7 @@ class GenerateQRScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // 🔝 TOP BAR
+            // 🔝 TOP BAR (SAME UI)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Row(
@@ -44,33 +183,71 @@ class GenerateQRScreen extends StatelessWidget {
               ),
             ),
 
-            // 📦 GRID
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  children: const [
-                    QRItem("Text", Icons.text_fields),
-                    QRItem("Website", Icons.language),
-                    QRItem("Wi-Fi", Icons.wifi),
-                    QRItem("Event", Icons.event),
-                    QRItem("Contact", Icons.person),
-                    QRItem("Business", Icons.business),
-                    QRItem("Location", Icons.location_on),
-                    QRItem("WhatsApp", Icons.chat),
-                    QRItem("Email", Icons.email),
-                    QRItem("Twitter", Icons.alternate_email),
-                    QRItem("Instagram", Icons.camera_alt),
-                    QRItem("Telephone", Icons.phone),
-                  ],
+            // 📌 FORM
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: buildForm(),
+            ),
+
+            // 🔘 GENERATE BUTTON
+            ElevatedButton(
+              onPressed: generateQR,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text("Generate QR Code"),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 📦 QR RESULT
+            if (qrData.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.white,
+                child: QrImageView(data: qrData, size: 180),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: () {
+                  QRStorage.addGenerated(qrData);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Saved to History')),
+                  );
+                },
+                icon: const Icon(Icons.save),
+                label: const Text("Save"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
                 ),
+              ),
+              const SizedBox(height: 10),
+            ],
+
+            // 📦 GRID (SAME UI)
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 3,
+                padding: const EdgeInsets.all(12),
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                children: [
+                  gridItem("Text"),
+                  gridItem("Website"),
+                  gridItem("Wi-Fi"),
+                  gridItem("Contact"),
+                  gridItem("WhatsApp"),
+                  gridItem("Email"),
+                  gridItem("Twitter"),
+                  gridItem("Instagram"),
+                  gridItem("Telephone"),
+                ],
               ),
             ),
 
-            // 🔘 BOTTOM NAV
+            // 🔘 BOTTOM NAV (SAME UI)
             Container(
               height: 70,
               decoration: const BoxDecoration(
@@ -83,25 +260,13 @@ class GenerateQRScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.qr_code, color: Colors.amber),
-                      Text(
-                        "Generate",
-                        style: TextStyle(color: Colors.amber, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                  const Icon(Icons.qr_code, color: Colors.amber),
 
-                  // CENTER BUTTON
-                  InkWell(
+                  GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => const HomeScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
                       );
                     },
                     child: Container(
@@ -119,21 +284,11 @@ class GenerateQRScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const HistoryScreen(),
+                          builder: (_) => const HistoryScreen(),
                         ),
                       );
                     },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.qr_code, color: Colors.white),
-                        SizedBox(height: 4),
-                        Text(
-                          "history",
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    child: const Icon(Icons.history, color: Colors.white),
                   ),
                 ],
               ),
@@ -143,149 +298,25 @@ class GenerateQRScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-// ================== GRID ITEM ==================
-
-class QRItem extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const QRItem(this.title, this.icon, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
+  // ================= GRID ITEM =================
+  Widget gridItem(String type) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => QRFormScreen(type: title)),
-        );
+        setState(() {
+          selectedType = type;
+          qrData = "";
+        });
       },
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.amber, width: 2),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.amber, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(color: Colors.amber, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ================== FORM SCREEN ==================
-
-class QRFormScreen extends StatelessWidget {
-  final String type;
-
-  const QRFormScreen({super.key, required this.type});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E1E1E),
-      appBar: AppBar(backgroundColor: Colors.transparent, title: Text(type)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ...getFields(),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
-              ),
-              child: const Text("Generate QR Code"),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> getFields() {
-    switch (type) {
-      case "Text":
-        return [input("Enter Text")];
-
-      case "Website":
-        return [input("Enter URL")];
-
-      case "Wi-Fi":
-        return [input("Network"), input("Password")];
-
-      case "Event":
-        return [
-          input("Event Name"),
-          input("Start Date"),
-          input("End Date"),
-          input("Location"),
-        ];
-
-      case "Contact":
-        return [
-          input("First Name"),
-          input("Last Name"),
-          input("Phone"),
-          input("Email"),
-        ];
-
-      case "Business":
-        return [
-          input("Company Name"),
-          input("Industry"),
-          input("Phone"),
-          input("Website"),
-        ];
-
-      case "Location":
-        return [input("Latitude"), input("Longitude")];
-
-      case "WhatsApp":
-        return [input("Phone Number")];
-
-      case "Email":
-        return [input("Email Address")];
-
-      case "Twitter":
-        return [input("Username")];
-
-      case "Instagram":
-        return [input("Username")];
-
-      case "Telephone":
-        return [input("Phone Number")];
-
-      default:
-        return [];
-    }
-  }
-
-  Widget input(String hint) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white54),
-          filled: true,
-          fillColor: Colors.black45,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none,
+        child: Center(
+          child: Text(
+            type,
+            style: const TextStyle(color: Colors.amber, fontSize: 12),
           ),
         ),
       ),

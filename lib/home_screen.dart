@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:qr_code_scanner/generate_screen.dart';
-import 'package:qr_code_scanner/history_screen.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'generate_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,6 +16,83 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   double _zoom = 0.5;
+
+  final MobileScannerController controller = MobileScannerController();
+
+  bool flashOn = false;
+  bool isScanning = false;
+
+  XFile? selectedImage;
+
+  // ================= OPEN LINK =================
+  Future<void> openLink(String data) async {
+    try {
+      String url = data.trim();
+
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://$url';
+      }
+
+      final Uri uri = Uri.parse(url);
+
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint("OPEN ERROR: $e");
+    }
+  }
+
+  // ================= QR SCAN =================
+  void onDetect(BarcodeCapture capture) async {
+    if (isScanning) return;
+
+    final barcodes = capture.barcodes;
+
+    if (barcodes.isNotEmpty) {
+      final String? code = barcodes.first.rawValue;
+
+      if (code != null) {
+        isScanning = true;
+
+        controller.stop();
+
+        await openLink(code);
+
+        await Future.delayed(const Duration(seconds: 2));
+
+        controller.start();
+
+        isScanning = false;
+      }
+    }
+  }
+
+  // ================= GALLERY SCAN =================
+  Future<void> pickFromGallery() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+
+    if (file != null) {
+      setState(() => selectedImage = file);
+
+      final result = await controller.analyzeImage(file.path);
+
+      if (result != null && result.barcodes.isNotEmpty) {
+        final data = result.barcodes.first.rawValue ?? "";
+        await openLink(data);
+      }
+    }
+  }
+
+  // ================= FLASH =================
+  void toggleFlash() {
+    setState(() => flashOn = !flashOn);
+    controller.toggleTorch();
+  }
+
+  // ================= CAMERA SWITCH =================
+  void switchCamera() {
+    controller.switchCamera();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,18 +111,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Colors.black.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.image, color: Colors.white),
-                  Icon(Icons.flash_on, color: Colors.white),
-                  Icon(Icons.cameraswitch, color: Colors.white),
+                  GestureDetector(
+                    onTap: pickFromGallery,
+                    child: const Icon(Icons.image, color: Colors.white),
+                  ),
+                  GestureDetector(
+                    onTap: toggleFlash,
+                    child: Icon(
+                      flashOn ? Icons.flash_on : Icons.flash_off,
+                      color: Colors.white,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: switchCamera,
+                    child: const Icon(Icons.cameraswitch, color: Colors.white),
+                  ),
                 ],
               ),
             ),
           ),
 
-          // ===== CENTER =====
+          // ===== CAMERA BOX =====
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -53,17 +147,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 260,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
-                      child: Transform.scale(
-                        scale: 1 + _zoom,
-                        child: Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Image.asset(
-                            'assets/qr.png',
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: selectedImage == null
+                            ? MobileScanner(
+                                controller: controller,
+                                onDetect: onDetect,
+                              )
+                            : Image.file(
+                                File(selectedImage!.path),
+                                fit: BoxFit.cover,
+                              ),
                       ),
                     ),
 
@@ -77,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 40),
 
-                // ===== ZOOM SLIDER =====
+                // ===== ZOOM =====
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: Row(
@@ -93,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onChanged: (value) {
                             setState(() {
                               _zoom = value;
+                              controller.setZoomScale(1 + value);
                             });
                           },
                         ),
@@ -124,61 +221,30 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  // GENERATE BUTTON (CLICKABLE)
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const GenerateQRScreen(),
+                          builder: (_) => const GenerateQRScreen(),
                         ),
                       );
                     },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.qr_code, color: Colors.white),
-                        SizedBox(height: 4),
-                        Text(
-                          "Generate",
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    child: const Icon(Icons.qr_code, color: Colors.white),
                   ),
 
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.qr_code_scanner,
-                      color: Colors.white,
-                    ),
-                  ),
+                  const Icon(Icons.qr_code_scanner, color: Colors.orange),
 
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const HistoryScreen(),
+                          builder: (_) => const HistoryScreen(),
                         ),
                       );
                     },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.qr_code, color: Colors.white),
-                        SizedBox(height: 4),
-                        Text(
-                          "history",
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    child: const Icon(Icons.history, color: Colors.white),
                   ),
                 ],
               ),
@@ -190,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ===== CORNER PAINTER =====
+// ================= CORNER PAINTER =================
 class CornerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -199,41 +265,26 @@ class CornerPainter extends CustomPainter {
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
-    const cornerLength = 30.0;
+    const c = 30.0;
 
-    canvas.drawLine(Offset(0, 0), const Offset(cornerLength, 0), paint);
-    canvas.drawLine(Offset(0, 0), const Offset(0, cornerLength), paint);
+    canvas.drawLine(Offset(0, 0), const Offset(c, 0), paint);
+    canvas.drawLine(Offset(0, 0), const Offset(0, c), paint);
 
-    canvas.drawLine(
-      Offset(size.width, 0),
-      Offset(size.width - cornerLength, 0),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width, 0),
-      Offset(size.width, cornerLength),
-      paint,
-    );
+    canvas.drawLine(Offset(size.width, 0), Offset(size.width - c, 0), paint);
+    canvas.drawLine(Offset(size.width, 0), Offset(size.width, c), paint);
+
+    canvas.drawLine(Offset(0, size.height), Offset(c, size.height), paint);
+    canvas.drawLine(Offset(0, size.height), Offset(0, size.height - c), paint);
 
     canvas.drawLine(
-      Offset(0, size.height),
-      Offset(cornerLength, size.height),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(0, size.height),
-      Offset(0, size.height - cornerLength),
+      Offset(size.width, size.height),
+      Offset(size.width - c, size.height),
       paint,
     );
 
     canvas.drawLine(
       Offset(size.width, size.height),
-      Offset(size.width - cornerLength, size.height),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width, size.height),
-      Offset(size.width, size.height - cornerLength),
+      Offset(size.width, size.height - c),
       paint,
     );
   }

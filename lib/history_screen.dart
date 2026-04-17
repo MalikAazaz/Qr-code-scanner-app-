@@ -3,12 +3,28 @@ import 'package:qr_code_scanner/generate_screen.dart';
 import 'package:qr_code_scanner/home_screen.dart';
 import 'package:qr_code_scanner/open_file.dart';
 import 'package:qr_code_scanner/setting_screen.dart';
+import 'package:qr_code_scanner/qr_storage.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String selectedTab = "Scan"; // "Scan" or "Create"
+
+  @override
   Widget build(BuildContext context) {
+    List<Map<String, String>> displayedHistory = QRStorage.history.where((item) {
+      if (selectedTab == "Scan") {
+        return item["type"] == "scanned";
+      } else {
+        return item["type"] == "generated";
+      }
+    }).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFF2C2C2C),
       body: SafeArea(
@@ -62,22 +78,43 @@ class HistoryScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(10),
+                      child: GestureDetector(
+                        onTap: () => setState(() => selectedTab = "Scan"),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selectedTab == "Scan" ? Colors.amber : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              "Scan",
+                              style: TextStyle(
+                                color: selectedTab == "Scan" ? Colors.black : Colors.white70,
+                                fontWeight: selectedTab == "Scan" ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
                         ),
-                        child: const Center(child: Text("Scan")),
                       ),
                     ),
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: const Center(
-                          child: Text(
-                            "Create",
-                            style: TextStyle(color: Colors.white70),
+                      child: GestureDetector(
+                        onTap: () => setState(() => selectedTab = "Create"),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selectedTab == "Create" ? Colors.amber : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              "Create",
+                              style: TextStyle(
+                                color: selectedTab == "Create" ? Colors.black : Colors.white70,
+                                fontWeight: selectedTab == "Create" ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -90,91 +127,115 @@ class HistoryScreen extends StatelessWidget {
 
               // List
               Expanded(
-                child: ListView.builder(
-                  itemCount: 6,
-                  itemBuilder: (context, index) {
-                    String data = "https://itunes.com";
-
-                    return GestureDetector(
-                      onTap: () {
-                        // 👇 NAVIGATION ADDED
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => OpenFileScreen(data: data),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF3A3A3A),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.4),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+                child: displayedHistory.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "No history yet.",
+                          style: TextStyle(color: Colors.white54),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
+                      )
+                    : ListView.builder(
+                        itemCount: displayedHistory.length,
+                        itemBuilder: (context, index) {
+                          final item = displayedHistory[index];
+                          String data = item["data"] ?? "";
+                          String time = item["time"] ?? "";
+                          
+                          try {
+                            DateTime dt = DateTime.parse(time);
+                            time = "${dt.day} ${_getMonth(dt.month)} ${dt.year}, ${dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour)}:${dt.minute.toString().padLeft(2, '0')} ${dt.hour >= 12 ? 'pm' : 'am'}";
+                          } catch (e) {
+                            // Keep default string if parse fails
+                          }
+
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => OpenFileScreen(data: data),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.qr_code,
-                                color: Colors.amber,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  Text(
-                                    "https://itunes.com",
-                                    style: TextStyle(color: Colors.white),
+                                color: const Color(0xFF3A3A3A),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.4),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    "Data",
-                                    style: TextStyle(color: Colors.white54),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.qr_code,
+                                      color: Colors.amber,
+                                    ),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    "16 Dec 2023, 9:30 pm",
-                                    style: TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 12,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          data,
+                                          style: const TextStyle(color: Colors.white),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          "Data",
+                                          style: TextStyle(color: Colors.white54),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          time,
+                                          style: const TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        QRStorage.history.remove(item);
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Icon(
+                                        Icons.delete,
+                                        color: Colors.amber,
+                                        size: 18,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.delete,
-                                color: Colors.amber,
-                                size: 18,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
 
               // Bottom Navigation
@@ -245,5 +306,13 @@ class HistoryScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+  
+  String _getMonth(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 }
